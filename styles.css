@@ -1,0 +1,237 @@
+/* Diário SMV — identidade SMV (bege + verde-oliva), coluna única de celular.
+   Cada variável tem sua cor em todas as telas: dieta (verde), água (azul),
+   peso (azul-ardósia), bioimpedância (ameixa), IMC (petróleo). */
+:root{
+  --bg:#F3E8D3; --surface:#FFFBF3; --ink:#1E2A22; --muted:#7D5E4F; --line:#E4D5B8; --chip:#ECE0C6;
+  --dieta:#5B7A47; --dieta-soft:#E3EAD6; --dieta-mid:#B4C79C; --dieta-ink:#2E4222;
+  --agua:#2F7DA6; --agua-soft:#DCEBF3;
+  --peso:#3F5F8F; --peso-soft:#E1E7F0;
+  --bio:#7A4E8C;  --bio-soft:#EEE3F1;
+  --imc:#2D7468;  --imc-soft:#DCECE8;
+  --bad:#C0532E;
+  --ok:#1E9E4A; --ok-soft:#D5F2DE;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141A16; --surface:#1C241F; --ink:#EDE6D6; --muted:#B7A493; --line:#2F3A33; --chip:#26302A;
+  --dieta:#9DBB82; --dieta-soft:#26331F; --dieta-mid:#4F6A3C; --dieta-ink:#E3EFD5;
+  --agua:#7FB8D6; --agua-soft:#1A2D38; --peso:#93AED8; --peso-soft:#1D2636;
+  --bio:#C7A0D6; --bio-soft:#2C2133; --imc:#6FC2B1; --imc-soft:#16302B; --bad:#EE8A6A; --ok:#4ADE80; --ok-soft:#14331F; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#141A16; --surface:#1C241F; --ink:#EDE6D6; --muted:#B7A493; --line:#2F3A33; --chip:#26302A;
+  --dieta:#9DBB82; --dieta-soft:#26331F; --dieta-mid:#4F6A3C; --dieta-ink:#E3EFD5;
+  --agua:#7FB8D6; --agua-soft:#1A2D38; --peso:#93AED8; --peso-soft:#1D2636;
+  --bio:#C7A0D6; --bio-soft:#2C2133; --imc:#6FC2B1; --imc-soft:#16302B; --bad:#EE8A6A; --ok:#4ADE80; --ok-soft:#14331F; color-scheme:dark }
+
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--dieta);outline-offset:2px}
+[hidden]{display:none!important}
+
+.app{max-width:480px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.top-dir{display:flex;align-items:center;gap:10px}
+.marca{font-family:var(--f-display);font-weight:700;font-size:20px;color:var(--dieta);letter-spacing:-.02em}
+.marca b{color:var(--dieta)}
+.eyebrow{margin:0;font-size:13px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.1;text-wrap:balance}
+h2{margin:0;font-family:var(--f-display);font-weight:500;font-size:19px;text-wrap:balance}
+.view{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card.pad-s{padding:12px}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.c-dieta{color:var(--dieta)} .c-agua{color:var(--agua)} .c-peso{color:var(--peso)} .c-bio{color:var(--bio)} .c-imc{color:var(--imc)} .c-muted{color:var(--muted)}
+.vazio{margin:0;color:var(--muted);font-size:15px}
+.link{background:none;border:0;padding:0;color:var(--dieta);text-decoration:underline;font-weight:500;font-size:14px;text-align:left}
+.link.perigo{color:var(--bad)}
+.meta-info{font-size:13px;color:var(--muted);margin:0}
+.nota{font-size:13px;color:var(--muted);margin:0}
+.icon-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none;font-size:20px;line-height:1}
+
+/* Dieta do dia */
+.dieta-top{display:flex;align-items:center;gap:16px}
+.ring{flex:none}
+.ring .trilha{stroke:var(--dieta-soft)}
+.ring .prog{stroke:var(--dieta);transition:stroke-dashoffset .4s ease}
+.ring text{fill:var(--ink);font-family:var(--f-display);font-weight:700;font-size:20px}
+.dieta-txt strong{display:block;font-family:var(--f-display);font-size:20px;font-weight:500}
+.dieta-txt span{color:var(--muted);font-size:14px}
+.refs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ref-item{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.ref-item.feita{background:var(--dieta-soft);border-color:transparent}
+.ref-item.opc:not(.feita){border-style:dashed}
+.ref-linha{display:flex;align-items:center;gap:12px}
+.chk{width:30px;height:30px;border-radius:9px;border:2px solid var(--dieta-mid);background:var(--surface);display:grid;place-items:center;flex:none;color:transparent;padding:0}
+.chk svg{width:18px;height:18px}
+.feita .chk{background:var(--dieta);border-color:var(--dieta);color:var(--surface)}
+.ref-info{flex:1;min-width:0;display:flex;flex-direction:column}
+.ref-nome{font-weight:600}
+.ref-hora{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.op-chips{display:flex;gap:6px;flex-wrap:wrap}
+.op{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;color:var(--muted);min-height:32px}
+.op.sug{border-style:dashed;border-color:var(--dieta-mid);color:var(--dieta)}
+.op.on{background:var(--dieta);border-color:var(--dieta);color:var(--surface)}
+.ref-resumo{margin:0;font-size:14px;color:var(--muted)}
+
+/* Água */
+.agua-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.agua-val{font-family:var(--f-display);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums}
+.agua-val small{font-size:14px;font-weight:500;color:var(--muted);margin-left:4px}
+.agua-btns{display:flex;gap:8px;align-items:center}
+.btn-agua{background:var(--agua);color:#fff;min-height:44px;padding:10px 14px}
+.treino{display:flex;flex-direction:column;gap:6px}
+
+/* Medidas */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tiles.t2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tile{border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0;background:var(--chip)}
+.tile.peso{background:var(--peso-soft)} .tile.peso .label{color:var(--peso)}
+.tile.bio{background:var(--bio-soft)}   .tile.bio .label{color:var(--bio)}
+.tile.imc{background:var(--imc-soft)}   .tile.imc .label{color:var(--imc)}
+.tile.dieta{background:var(--dieta-soft)} .tile.dieta .label{color:var(--dieta)}
+.tile.agua{background:var(--agua-soft)} .tile.agua .label{color:var(--agua)}
+.tile .label{color:var(--muted)}
+.tile .val{font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile .val small{font-size:13px;font-weight:500;margin-left:2px;color:var(--muted)}
+.tile .sub{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.btn{border:0;border-radius:12px;padding:14px 18px;font-weight:600;min-height:50px}
+.btn-pri{background:var(--ink);color:var(--bg)}
+.btn-sec{background:var(--chip);color:var(--ink)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn-row .btn{flex:1}
+
+form{display:flex;flex-direction:column;gap:14px}
+.grupo{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px}
+.grupo.peso{background:var(--peso-soft)} .grupo.bio{background:var(--bio-soft)}
+.grupo .label{margin:0}
+.grupo.peso .label{color:var(--peso)} .grupo.bio .label{color:var(--bio)}
+.campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.campo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.campo label{font-size:13px;color:var(--muted)}
+.campo input{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;min-height:44px;font-variant-numeric:tabular-nums}
+.erro{color:var(--bad);font-size:13px;margin:0}
+
+/* Plano */
+.atalhos{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.atalhos::-webkit-scrollbar{display:none}
+.atalhos button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:500;white-space:nowrap}
+.grps{display:flex;flex-direction:column}
+.grp{display:flex;flex-direction:column;gap:6px;padding:12px 0;border-top:1px solid var(--line)}
+.grp:first-child{border-top:0;padding-top:0}
+.principal,.grp-rot{font-weight:600}
+.subs-l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--chip);border-radius:8px;padding:4px 10px;font-size:14px}
+.chip.tg{border:1px solid var(--line);background:var(--surface);min-height:36px;text-align:left}
+.chip.tg[aria-pressed="true"]{background:var(--dieta-soft);border-color:var(--dieta);color:var(--dieta-ink)}
+.op-nota{background:var(--chip);border-radius:10px;padding:10px 12px;font-size:14px;margin:0}
+.lista-simples{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.receita{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.receita th,.receita td{text-align:left;padding:8px 6px;border-top:1px solid var(--line)}
+.receita th{font-size:12px;color:var(--muted);font-weight:600;border-top:0}
+.receita td:last-child,.receita th:last-child{text-align:right}
+
+/* Semana */
+.sem-nav{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sem-nav h2{text-align:center;flex:1}
+.tbl-wrap{overflow-x:auto;margin:0 -4px}
+.matriz{border-collapse:separate;border-spacing:3px;width:100%;font-variant-numeric:tabular-nums}
+.matriz th{font-size:11px;color:var(--muted);font-weight:600;text-align:center;padding:0}
+.matriz th.hoje-col{color:var(--ink)}
+.matriz th span{display:block;font-size:14px;color:var(--ink);font-weight:600}
+.matriz .rot{text-align:left;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;padding-right:4px}
+.matriz .rot small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.cel{width:100%;min-width:32px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:11px;font-weight:600;color:var(--muted);padding:0}
+.cel.sug{border-style:dashed;border-color:var(--dieta-mid);color:var(--dieta);font-weight:500}
+.cel.esc{border-color:var(--dieta);color:var(--dieta)}
+.cel.feita{background:var(--dieta);border-color:var(--dieta);color:var(--surface)}
+.cel.perdida{background:var(--chip);border-color:transparent}
+.cel:disabled{cursor:default}
+.matriz .pct{font-size:12px;color:var(--muted);text-align:center;font-weight:600}
+.legenda{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legenda span{display:inline-flex;align-items:center;gap:5px}
+.legenda i{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid var(--line)}
+.lg-feita{background:var(--dieta);border-color:var(--dieta)!important}
+.lg-esc{border-color:var(--dieta)!important}
+.lg-sug{border-style:dashed!important;border-color:var(--dieta-mid)!important}
+.lg-perd{background:var(--chip);border-color:transparent!important}
+.lg-mid{background:var(--dieta-mid);border-color:var(--dieta-mid)!important}
+.lg-soft{background:var(--dieta-soft);border-color:var(--dieta-soft)!important}
+.legenda i.lg-pt{width:8px;height:8px;border-radius:50%;background:var(--peso);border:0}
+.res-ref{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+.res-ref:first-child{border-top:0;padding-top:0}
+.res-top{display:flex;justify-content:space-between;gap:8px;font-size:15px}
+.res-top b{font-weight:600}
+.res-top span{color:var(--muted);font-variant-numeric:tabular-nums;font-size:14px}
+.res-top span.over{color:var(--bad);font-weight:600}
+.barra{height:8px;background:var(--chip);border-radius:999px;overflow:hidden}
+.barra span{display:block;height:100%;background:var(--dieta);border-radius:999px;transition:width .3s ease}
+.barra.peso span{background:var(--peso)}
+.barra.agua span{background:var(--agua)}
+.barra.over span{background:var(--bad)}
+.destaques{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:15px}
+
+/* Evolução */
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--chip);border-radius:12px;padding:4px;gap:4px}
+.seg button{border:0;background:none;border-radius:9px;padding:9px 4px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+.chart{width:100%;height:auto;display:block}
+.chart .grid{stroke:var(--line);stroke-width:1}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--f-body);font-variant-numeric:tabular-nums}
+.chart .end{fill:var(--ink);font-weight:600;font-size:12px}
+.hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.hist li{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+.hist li:first-child{border-top:0}
+.hist .d{color:var(--muted)}
+.hist .vs{display:flex;gap:10px;flex-wrap:wrap}
+.hist .vs b{font-weight:600}
+.del{border:0;background:none;color:var(--muted);font-size:13px;padding:6px 8px;border-radius:8px}
+.del.conf{color:var(--bad);background:var(--chip)}
+
+/* Calendário */
+.mes-nav{display:flex;justify-content:space-between;align-items:center}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .wd{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px}
+.dia{aspect-ratio:1;max-width:100%;border:0;border-radius:10px;background:var(--chip);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-variant-numeric:tabular-nums;font-size:14px;padding:0}
+.dia.vazio-dia{background:none}
+.dia.a1{background:var(--dieta-soft)}
+.dia.a2{background:var(--dieta-mid)}
+.dia.a3{background:var(--dieta);color:var(--surface)}
+.dia.futuro{opacity:.45}
+.dia.hoje{box-shadow:inset 0 0 0 2px var(--ink)}
+.dia.sel{outline:2px solid var(--peso);outline-offset:1px}
+.dia .pt{width:5px;height:5px;border-radius:50%;background:var(--peso)}
+.dia.a3 .pt{background:var(--surface)}
+.med-dia{display:flex;gap:12px;flex-wrap:wrap;font-size:14px;font-variant-numeric:tabular-nums}
+
+.aviso{background:var(--dieta-soft);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:5}
+.tabs-in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
+.tab{border:0;background:none;padding:10px 2px 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--muted);font-weight:500}
+.tab svg{width:22px;height:22px}
+.tab[aria-current="page"]{color:var(--ink)}
+.tab[aria-current="page"] svg{stroke-width:2.2;color:var(--dieta)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:6;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion: reduce){ .ring .prog,.barra span{transition:none} }
+
+/* Seletor de dia (tela Hoje) */
+.dia-nav{display:flex;align-items:center;gap:8px;margin:2px 0 12px}
+.dia-nav input{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;min-height:40px;font-variant-numeric:tabular-nums}
+.dia-nav .link{flex:none}
+.registrar{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.registrar .btn-pri{background:var(--dieta);color:var(--surface)}
+.registrar .btn:disabled{opacity:.45}
+
+/* Meta de água atingida */
+.agua-ok{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-family:var(--f-display);font-weight:700;font-size:18px;text-align:center;animation:pop .45s ease}
+@keyframes pop{0%{transform:scale(.9);opacity:0}60%{transform:scale(1.04);opacity:1}100%{transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.agua-ok{animation:none}}
+.op-sub{margin:2px 0 0;font-family:var(--f-display);font-weight:700;font-size:17px}
