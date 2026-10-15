@@ -1,7 +1,7 @@
 /* Service worker: o app abre sem internet.
    Arquivos do app: usa o cache e atualiza em segundo plano (a nova versão aparece na próxima abertura).
    Ao publicar mudanças grandes, aumente VERSAO para limpar o cache antigo. */
-const VERSAO = 'smv-v2';
+const VERSAO = 'smv-v3';
 const ARQS = ['./', 'index.html', 'styles.css', 'app.js', 'plano.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

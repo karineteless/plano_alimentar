@@ -71,6 +71,11 @@ const mlDia = c => c.aguaMl!=null ? c.aguaMl : (c.copos||0)*250;
 const aguaDe = data => mlDia(diaDe(data));
 const meds = () => S.medicoes.slice().sort((a,b)=> a.data<b.data?-1:a.data>b.data?1:(a.criado||0)-(b.criado||0));
 function imc(peso){ const a=S.perfil&&S.perfil.altura_cm; if(!a||!peso) return null; return peso/((a/100)**2); }
+/* Derivados da bioimpedância: massa gorda/magra a partir do % de gordura; músculo e osso como % do peso */
+function composicao(m){
+  const p=m.peso, gk = m.gordura!=null ? p*m.gordura/100 : null, pct = v => v!=null ? v/p*100 : null;
+  return { gordaKg:gk, magraKg: gk!=null ? p-gk : null, musculo:m.musculo, musculoPct:pct(m.musculo), ossea:m.ossea, osseaPct:pct(m.ossea), agua:m.agua };
+}
 function classeImc(v){ if(v==null) return ''; if(v<18.5) return 'Abaixo do peso'; if(v<25) return 'Peso normal'; if(v<30) return 'Sobrepeso'; if(v<35) return 'Obesidade grau I'; if(v<40) return 'Obesidade grau II'; return 'Obesidade grau III'; }
 /* Dia exibido na tela Hoje (padrão: hoje). Dias anteriores são editados num rascunho e só salvos em "Registrar". */
 const diaAtual = () => (UI.dia && UI.dia<hoje()) ? UI.dia : hoje();
@@ -157,7 +162,22 @@ function renderHoje(){
   $('ult-data').textContent = u ? `em ${ddmm(u.data)}` : '';
   const delta = (x,y,un) => (x==null||y==null) ? '' : `${x-y>0?'+':''}${num(x-y)} ${un} vs. anterior`;
   if(!u){ $('tiles').innerHTML = '<p class="vazio" style="grid-column:1/-1">Nenhuma medição ainda. Registre a primeira abaixo.</p>'; return; }
-  const iu=imc(u.peso);
+  const iu=imc(u.peso), cp=composicao(u);
+  const ultCom = k => ms.slice(0,-1).reverse().find(x=>x[k]!=null);
+  const antC = k => { const a=ultCom(k); return a ? composicao(a)[k] : null; };
+  const linhas = [
+    ['Massa gorda', cp.gordaKg, 'kg', null, 'gordaKg', 'peso × % gordura'],
+    ['Massa magra', cp.magraKg, 'kg', null, 'magraKg', 'peso − massa gorda'],
+    ['Massa muscular', cp.musculo, 'kg', cp.musculoPct, 'musculo', ''],
+    ['Massa óssea', cp.ossea, 'kg', cp.osseaPct, 'ossea', ''],
+    ['Água corporal', cp.agua, '%', null, 'agua', ''],
+  ].filter(l=>l[1]!=null);
+  $('comp').hidden = !linhas.length;
+  $('comp').innerHTML = linhas.length ? '<span class="label c-bio">Composição corporal</span><ul>'+linhas.map(([n,v,un,pct,k,dica])=>{
+    const a = k==='gordaKg'||k==='magraKg' ? (()=>{ const x=ultCom('gordura'); return x?composicao(x)[k]:null; })() : antC(k);
+    const dl = a!=null ? `${v-a>0?'+':''}${num(v-a)} ${un==='%'?'p.p.':un}` : '';
+    return `<li><span>${n}${dica?`<small>${dica}</small>`:''}</span><b>${num(v)} ${un}${pct!=null?`<small> · ${num(pct)}% do peso</small>`:''}</b>${dl?`<small class="dl">${dl}</small>`:'<small class="dl"></small>'}</li>`;
+  }).join('')+'</ul>' : '';
   $('tiles').innerHTML =
     `<div class="tile peso"><span class="label">Peso</span><span class="val">${num(u.peso)}<small>kg</small></span><span class="sub">${ant?delta(u.peso,ant.peso,'kg'):'&nbsp;'}</span></div>`+
     `<div class="tile bio"><span class="label">Gordura</span><span class="val">${u.gordura!=null?num(u.gordura):'—'}<small>%</small></span><span class="sub">${ant&&u.gordura!=null&&ant.gordura!=null?delta(u.gordura,ant.gordura,'p.p.'):'bioimpedância'}</span></div>`+
@@ -253,6 +273,8 @@ function serieAtual(){
   const m=meds();
   if(UI.serie==='peso') return {pts:m.map(x=>({d:x.data,v:x.peso})), cor:'var(--peso)', label:'Peso (kg)', un:'kg', cls:'c-peso'};
   if(UI.serie==='gordura') return {pts:m.filter(x=>x.gordura!=null).map(x=>({d:x.data,v:x.gordura})), cor:'var(--bio)', label:'Gordura corporal (%)', un:'p.p.', cls:'c-bio'};
+  if(UI.serie==='musculo') return {pts:m.filter(x=>x.musculo!=null).map(x=>({d:x.data,v:composicao(x).musculoPct})), cor:'var(--bio)', label:'Massa muscular (% do peso)', un:'p.p.', cls:'c-bio'};
+  if(UI.serie==='ossea') return {pts:m.filter(x=>x.ossea!=null).map(x=>({d:x.data,v:x.ossea})), cor:'var(--bio)', label:'Massa óssea (kg)', un:'kg', cls:'c-bio'};
   return {pts:m.map(x=>({d:x.data,v:imc(x.peso)})).filter(p=>p.v!=null), cor:'var(--imc)', label:'IMC (kg/m²)', un:'', cls:'c-imc'};
 }
 function passoBom(x){ const p=Math.pow(10,Math.floor(Math.log10(x))); const f=x/p; return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p; }
@@ -298,7 +320,7 @@ function renderEvo(){
   if(!m.length){ $('hist').innerHTML='<li style="display:block"><p class="vazio">As medições registradas aparecem aqui.</p></li>'; return; }
   $('hist').innerHTML = m.slice().reverse().map(x=>{
     const i=imc(x.peso), c=UI.pendDel===x.id;
-    return `<li><span class="d">${ddmm(x.data)}</span><span class="vs"><b class="c-peso">${num(x.peso)} kg</b>${x.gordura!=null?`<b class="c-bio">${num(x.gordura)}%</b>`:''}${i!=null?`<b class="c-imc">IMC ${num(i)}</b>`:''}</span><button class="del${c?' conf':''}" data-del="${esc(x.id)}">${c?'Confirmar':'Apagar'}</button></li>`;
+    return `<li><span class="d">${ddmm(x.data)}</span><span class="vs"><b class="c-peso">${num(x.peso)} kg</b>${x.gordura!=null?`<b class="c-bio">${num(x.gordura)}%</b>`:''}${x.musculo!=null?`<b class="c-bio">músc. ${num(composicao(x).musculoPct)}%</b>`:''}${x.ossea!=null?`<b class="c-bio">osso ${num(x.ossea)} kg</b>`:''}${i!=null?`<b class="c-imc">IMC ${num(i)}</b>`:''}</span><button class="del${c?' conf':''}" data-del="${esc(x.id)}">${c?'Confirmar':'Apagar'}</button></li>`;
   }).join('');
 }
 
@@ -318,7 +340,7 @@ function renderCal(){
   $('sel-titulo').textContent = UI.sel===h ? 'Hoje' : dataLonga(UI.sel);
   $('refs-sel').innerHTML = blocoRefeicoes(UI.sel);
   const md=meds().filter(x=>x.data===UI.sel).pop(), ag=aguaDe(UI.sel);
-  $('med-sel').innerHTML = (md ? `<b class="c-peso">${num(md.peso)} kg</b>${md.gordura!=null?`<b class="c-bio">${num(md.gordura)}% gordura</b>`:''}${imc(md.peso)!=null?`<b class="c-imc">IMC ${num(imc(md.peso))}</b>`:''}` : '<span class="meta-info">Sem medição neste dia.</span>')
+  $('med-sel').innerHTML = (md ? `<b class="c-peso">${num(md.peso)} kg</b>${md.gordura!=null?`<b class="c-bio">${num(md.gordura)}% gordura</b>`:''}${md.musculo!=null?`<b class="c-bio">${num(composicao(md).musculoPct)}% massa muscular</b>`:''}${md.ossea!=null?`<b class="c-bio">${num(md.ossea)} kg massa óssea</b>`:''}${imc(md.peso)!=null?`<b class="c-imc">IMC ${num(imc(md.peso))}</b>`:''}` : '<span class="meta-info">Sem medição neste dia.</span>')
     + (ag ? `<b class="c-agua">${ml(ag)} ml de água</b>` : '');
 }
 
@@ -434,13 +456,17 @@ function fecharForm(){ $('form-med').reset(); $('form-med').hidden=true; $('btn-
 $('form-med').addEventListener('submit', e=>{
   e.preventDefault();
   const data=$('m-data').value, peso=parse($('m-peso').value);
-  const opc={gordura:[parse($('m-gord').value),3,70,'gordura (3 a 70%)'], musculo:[parse($('m-musc').value),10,150,'massa muscular (10 a 150 kg)'], agua:[parse($('m-agua').value),30,80,'água (30 a 80%)'], visceral:[parse($('m-visc').value),1,60,'gordura visceral (1 a 60)']};
+  const opc={gordura:[parse($('m-gord').value),3,70,'gordura (3 a 70%)'], musculo:[parse($('m-musc').value),10,150,'massa muscular (10 a 150 kg)'], agua:[parse($('m-agua').value),30,80,'água (30 a 80%)'], ossea:[parse($('m-ossea').value),0.5,10,'massa óssea (0,5 a 10 kg)']};
   if(!data) return mostrarErro('m-erro','Informe a data da medição.');
   if(data>hoje()) return mostrarErro('m-erro','A data não pode estar no futuro.');
   if(peso==null) return mostrarErro('m-erro','Informe o peso.');
   if(isNaN(peso)||peso<30||peso>300) return mostrarErro('m-erro','Peso fora da faixa esperada (30 a 300 kg).');
   const m={id:'m'+Date.now(), data, peso:Math.round(peso*10)/10, criado:Date.now()};
   for(const k in opc){ const [v,a,b,n]=opc[k]; if(v==null) continue; if(isNaN(v)||v<a||v>b) return mostrarErro('m-erro','Valor inválido em '+n+'.'); m[k]=Math.round(v*10)/10; }
+  /* Coerência: músculo + osso não passam do peso, nem somados à massa gorda (margem de 5% da balança) */
+  const cp=composicao(m);
+  if((m.musculo||0)+(m.ossea||0) > m.peso) return mostrarErro('m-erro','Massa muscular + massa óssea não podem passar do peso.');
+  if(cp.gordaKg!=null && cp.gordaKg+(m.musculo||0)+(m.ossea||0) > m.peso*1.05) return mostrarErro('m-erro',`Gordura (${num(cp.gordaKg)} kg) + músculo + osso passam do peso. Confira os valores.`);
   S.medicoes.push(m); salvar(); fecharForm(); render(); toast('Medição registrada');
 });
 $('form-perfil').addEventListener('submit', e=>{

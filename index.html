@@ -88,6 +88,7 @@
     <div class="card">
       <div class="card-head"><span class="label c-muted">Últimas medidas</span><span class="meta-info" id="ult-data"></span></div>
       <div class="tiles" id="tiles"></div>
+      <div class="comp" id="comp" hidden></div>
       <button class="btn btn-pri" id="btn-medir" data-acao="abrir-form">Registrar medição</button>
       <form id="form-med" hidden novalidate>
         <div class="campo"><label for="m-data">Data</label><input type="date" id="m-data" required></div>
@@ -103,7 +104,7 @@
             <div class="campo"><label for="m-gord">Gordura corporal (%)</label><input id="m-gord" type="text" inputmode="decimal"></div>
             <div class="campo"><label for="m-musc">Massa muscular (kg)</label><input id="m-musc" type="text" inputmode="decimal"></div>
             <div class="campo"><label for="m-agua">Água corporal (%)</label><input id="m-agua" type="text" inputmode="decimal"></div>
-            <div class="campo"><label for="m-visc">Gordura visceral (nível)</label><input id="m-visc" type="text" inputmode="numeric"></div>
+            <div class="campo"><label for="m-ossea">Massa óssea (kg)</label><input id="m-ossea" type="text" inputmode="decimal" placeholder="Ex.: 2,6"></div>
           </div>
         </div>
         <p class="erro" id="m-erro" hidden></p>
@@ -155,6 +156,8 @@
       <button data-serie="peso" aria-pressed="true">Peso</button>
       <button data-serie="gordura" aria-pressed="false">% Gordura</button>
       <button data-serie="imc" aria-pressed="false">IMC</button>
+      <button data-serie="musculo" aria-pressed="false">% Músculo</button>
+      <button data-serie="ossea" aria-pressed="false">Massa óssea</button>
     </div>
     <div class="card">
       <div class="card-head"><span class="label" id="graf-label">Peso (kg)</span><span class="meta-info" id="graf-delta"></span></div>
