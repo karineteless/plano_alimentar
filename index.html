@@ -37,14 +37,18 @@
 
   <!-- HOJE -->
   <section class="view" id="v-hoje">
-    <div class="card">
-      <div class="card-head"><span class="label c-dieta" id="dieta-label">Dieta de hoje</span></div>
+    <div class="dia-bar" id="dia-bar">
       <div class="dia-nav">
         <button class="icon-btn" data-acao="dia-ant" aria-label="Dia anterior"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <input type="date" id="dia-sel" aria-label="Dia das refeições">
+        <input type="date" id="dia-sel" aria-label="Dia exibido">
         <button class="icon-btn" data-acao="dia-prox" id="dia-prox" aria-label="Próximo dia"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="link" data-acao="dia-hoje" id="dia-hoje">Hoje</button>
       </div>
+      <p class="dia-aviso" id="dia-aviso" hidden>Editando um dia anterior: refeições, água, treino, extras e doce. Toque em <b>Registrar</b> para salvar.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="label c-dieta" id="dieta-label">Dieta de hoje</span><span class="badge-flex" id="flex-badge" hidden>Fim de semana · cardápio flexível</span></div>
       <div class="dieta-top">
         <svg class="ring" width="84" height="84" viewBox="0 0 84 84" aria-hidden="true">
           <circle class="trilha" cx="42" cy="42" r="34" fill="none" stroke-width="9"/>
@@ -54,33 +58,45 @@
         <div class="dieta-txt"><strong id="dieta-resumo">—</strong><span id="dieta-dica">Escolha a opção e marque ao concluir</span></div>
       </div>
       <div id="refs-hoje"></div>
-      <div class="registrar" id="registrar" hidden>
-        <div class="btn-row">
-          <button class="btn btn-sec" data-acao="descartar" id="btn-descartar">Descartar</button>
-          <button class="btn btn-pri" data-acao="registrar" id="btn-registrar">Registrar</button>
-        </div>
-      </div>
+      <p class="nota" id="flex-legenda" hidden><b class="c-flex">F1, F2…</b> são as opções do cardápio flexível de fim de semana.</p>
     </div>
 
     <div class="card">
       <div class="card-head"><span class="label c-agua">Água</span><span class="meta-info" id="agua-meta"></span></div>
       <div class="agua-top">
-        <span class="agua-val" id="agua-val">0</span>
+        <button class="agua-val" id="agua-val" data-acao="agua-editar" aria-label="Digitar a quantidade de água">0</button>
         <div class="agua-btns">
           <button class="icon-btn" data-acao="agua-menos" aria-label="Tirar 500 ml">−</button>
           <button class="btn btn-agua" data-acao="agua-mais">+ 500 ml</button>
         </div>
       </div>
+      <form class="agua-form" id="agua-form" hidden novalidate>
+        <div class="campo"><label for="agua-input">Total de água no dia (ml)</label><input id="agua-input" type="number" inputmode="numeric" min="0" max="10000" step="50"></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-sec" data-acao="agua-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-agua">Salvar</button>
+        </div>
+        <p class="erro" id="agua-erro" hidden></p>
+      </form>
       <div class="barra agua"><span id="agua-barra" style="width:0%"></span></div>
       <p class="agua-ok" id="agua-ok" role="status" hidden>🎉 Meta de água atingida! Parabéns!</p>
+      <p class="nota" id="agua-dica">Toque no número para digitar o total.</p>
       <div class="treino">
-        <span class="meta-info">Treino hoje (+300 ml por hora):</span>
+        <span class="meta-info" id="treino-label">Treino hoje (+300 ml por hora):</span>
         <div class="op-chips" id="treino-chips" role="group" aria-label="Minutos de treino"></div>
       </div>
     </div>
 
+    <div class="card card-flex" id="card-doce" hidden>
+      <div class="card-head"><span class="label c-flex">Doce flexível</span><span class="meta-info" id="doce-info"></span></div>
+      <p class="nota" id="doce-regra"></p>
+      <p class="aviso-flex" id="doce-aviso" hidden></p>
+      <div class="chips" id="doce-chips"></div>
+      <p class="nota" id="doce-livre"></p>
+    </div>
+
     <div class="card">
-      <div class="card-head"><span class="label c-dieta">Extras de hoje</span><span class="meta-info" id="extras-n"></span></div>
+      <div class="card-head"><span class="label c-dieta" id="extras-label">Extras de hoje</span><span class="meta-info" id="extras-n"></span></div>
       <p class="nota">Para quando der fome fora das refeições.</p>
       <div class="chips" id="extras-hoje"></div>
     </div>
@@ -114,10 +130,22 @@
         </div>
       </form>
     </div>
+
+    <div class="registrar-bar" id="registrar" hidden>
+      <p class="meta-info" id="registrar-txt"></p>
+      <div class="btn-row">
+        <button class="btn btn-sec" data-acao="descartar" id="btn-descartar">Descartar</button>
+        <button class="btn btn-pri" data-acao="registrar" id="btn-registrar">Registrar</button>
+      </div>
+    </div>
   </section>
 
   <!-- PLANO -->
   <section class="view" id="v-plano" hidden>
+    <div class="seg s2" role="group" aria-label="Cardápio">
+      <button data-plano="semana" aria-pressed="true">Dia a dia</button>
+      <button data-plano="fds" aria-pressed="false">Fim de semana</button>
+    </div>
     <div class="atalhos" id="atalhos"></div>
     <div id="cardapio" class="view"></div>
   </section>
@@ -191,6 +219,7 @@
       <h2 id="sel-titulo"></h2>
       <div id="refs-sel"></div>
       <div class="med-dia" id="med-sel"></div>
+      <button class="btn btn-sec" id="btn-editar-dia" data-acao="editar-dia">Editar água, treino e extras deste dia</button>
     </div>
   </section>
 

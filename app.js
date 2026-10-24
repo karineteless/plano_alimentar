@@ -25,7 +25,7 @@ const TREINO_OPC = [0,30,45,60,90,120];
 /* ---------- Estado e armazenamento ---------- */
 const CHAVE = 'diario-smv-v1';
 const S = { perfil:null, medicoes:[], dias:{}, ultimoBackup:null };
-const UI = { tab:'hoje', dia:null, rasc:null, serie:'peso', sel:hoje(), mes:null, semana:segunda(hoje()), pendDel:null, perfilSujo:false, cardOp:{}, confApagar:false };
+const UI = { tab:'hoje', dia:null, rasc:null, serie:'peso', sel:hoje(), mes:null, semana:segunda(hoje()), pendDel:null, perfilSujo:false, cardOp:{}, confApagar:false, planoFds:null, aguaEdit:false };
 { const d=new Date(); UI.mes={a:d.getFullYear(), m:d.getMonth()}; }
 
 function salvar(){
@@ -49,23 +49,47 @@ function alterarDia(data, fn){
 /* ---------- Plano ---------- */
 const refeicoes = () => P.refeicoes;
 const obrigatorias = () => P.refeicoes.filter(r=>!r.opcional);
-const opcoes = r => r.opcoes;
+/* Cardápio flexível: nos dias de P.fimDeSemana.dias as opções Flex entram junto das habituais */
+const FDS = P.fimDeSemana || null;
+const ehFlex = data => !!FDS && FDS.dias.includes(new Date(data+'T12:00:00').getDay());
+const flexRef = r => (FDS && FDS.refeicoes && FDS.refeicoes[r.id]) || null;
+const flexOps = r => (flexRef(r)||{}).opcoes || [];
+const opcoes = (r,data) => (data && ehFlex(data)) ? r.opcoes.concat(flexOps(r)) : r.opcoes;
 const diaDe = data => S.dias[data]||{};
 const feitasDe = data => diaDe(data).feitas||{};
 const extrasDe = data => Array.isArray(diaDe(data).extras)?diaDe(data).extras:[];
 function adesao(data){ const r=obrigatorias(); const f=feitasDe(data); return r.filter(x=>f[x.id]).length/r.length; }
-function sugestao(r,data){ const ops=opcoes(r); return ops.length ? ops[diaNum(data)%ops.length].id : null; }
-function escolha(r,data,dia=diaDe(data)){ const e=(dia.escolhas||{})[r.id]; return opcoes(r).some(o=>o.id===e) ? e : null; }
+/* A sugestão automática gira só entre as opções habituais */
+function sugestao(r,data){ const ops=r.opcoes; return ops.length ? ops[diaNum(data)%ops.length].id : null; }
+function escolha(r,data,dia=diaDe(data)){ const e=(dia.escolhas||{})[r.id]; return opcoes(r,data).some(o=>o.id===e) ? e : null; }
 const opcaoEfetiva = (r,data,dia) => escolha(r,data,dia) || sugestao(r,data);
-const opcaoPorId = (r,id) => opcoes(r).find(o=>o.id===id);
+const opcaoPorId = (r,id) => r.opcoes.concat(flexOps(r)).find(o=>o.id===id);
 const resumoOpcao = o => o ? [o.subtitulo, ...o.grupos.filter(g=>g.res).map(g=>g.res)].filter(Boolean).join(' · ') : '';
+/* Dias de cardápio flexível em sequência (ex.: sex–dom) que contêm `data` */
+function blocoFds(data){
+  const b=[data];
+  for(let d=somaDias(data,-1), i=0; i<6 && ehFlex(d); d=somaDias(d,-1), i++) b.unshift(d);
+  for(let d=somaDias(data,1), i=0; i<6 && ehFlex(d); d=somaDias(d,1), i++) b.push(d);
+  return b;
+}
+/* Opção "uma vez por fim de semana" já escolhida em outro dia do mesmo bloco → data desse dia */
+function flexUsadaEm(r, data){
+  if(!ehFlex(data)) return null;
+  return blocoFds(data).find(d=>{ if(d===data) return false; const o=opcaoPorId(r,escolha(r,d)); return o && o.umaVez; }) || null;
+}
+const diaCurto = s => `${SEM[new Date(s+'T12:00:00').getDay()].split('-')[0].slice(0,3)} (${ddmm(s)})`;
+/* Doce flexível */
+const DOCES = FDS && FDS.doces;
+const doceIdx = id => DOCES ? DOCES.itens.findIndex(x=>x.id===id) : -1;
+const boloOntem = data => !!(DOCES && DOCES.bolo && diaDe(somaDias(data,-1)).doce===DOCES.bolo.id);
 /* Marca/desmarca uma refeição; ao marcar, fixa a opção sugerida se nenhuma foi escolhida */
 function marcar(c, id, data){
   if(c.feitas[id]){ delete c.feitas[id]; return; }
   c.feitas[id]=true; const r=refeicoes().find(x=>x.id===id);
-  if(r && !c.escolhas[r.id] && opcoes(r).length>1) c.escolhas[r.id]=sugestao(r,data);
+  if(r && !c.escolhas[r.id] && opcoes(r,data).length>1) c.escolhas[r.id]=sugestao(r,data);
 }
-function metaAgua(data){ const h=P.hidratacao; return h.baseMl + Math.round(h.porHoraTreinoMl*(diaDe(data).treinoMin||0)/60); }
+/* `dia` opcional: rascunho de um dia anterior */
+function metaAgua(data, dia){ const h=P.hidratacao, t=(dia||diaDe(data)).treinoMin||0; return h.baseMl + Math.round(h.porHoraTreinoMl*t/60); }
 /* Registros antigos guardavam copos de 250 ml; os novos guardam aguaMl */
 const mlDia = c => c.aguaMl!=null ? c.aguaMl : (c.copos||0)*250;
 const aguaDe = data => mlDia(diaDe(data));
@@ -79,21 +103,36 @@ function composicao(m){
   return { gordaKg:gk, magraKg: gk!=null ? p-gk : null, musculoPct:mp, musculoKg:kg(mp), osseaPct:op, osseaKg:kg(op), agua:m.agua };
 }
 function classeImc(v){ if(v==null) return ''; if(v<18.5) return 'Abaixo do peso'; if(v<25) return 'Peso normal'; if(v<30) return 'Sobrepeso'; if(v<35) return 'Obesidade grau I'; if(v<40) return 'Obesidade grau II'; return 'Obesidade grau III'; }
-/* Dia exibido na tela Hoje (padrão: hoje). Dias anteriores são editados num rascunho e só salvos em "Registrar". */
+/* Dia exibido na tela Hoje (padrão: hoje). Dias anteriores são editados num rascunho
+   (refeições, água, treino, extras e doce) e só salvos em "Registrar". */
 const diaAtual = () => (UI.dia && UI.dia<hoje()) ? UI.dia : hoje();
 function rascunho(){
   const d=diaAtual();
   if(d===hoje()){ UI.rasc=null; return null; }
-  if(!UI.rasc || UI.rasc.data!==d){ const x=diaDe(d); UI.rasc={data:d, feitas:{...(x.feitas||{})}, escolhas:{...(x.escolhas||{})}}; }
+  if(!UI.rasc || UI.rasc.data!==d){
+    const x=diaDe(d);
+    UI.rasc={data:d, feitas:{...(x.feitas||{})}, escolhas:{...(x.escolhas||{})}, aguaMl:mlDia(x), treinoMin:x.treinoMin||0, extras:extrasDe(d).slice(), doce:x.doce||null};
+  }
   return UI.rasc;
 }
 function mesmoObj(a,b){ const ka=Object.keys(a).filter(k=>a[k]), kb=Object.keys(b).filter(k=>b[k]); return ka.length===kb.length && ka.every(k=>a[k]===b[k]); }
-function rascSujo(){ const r=UI.rasc; if(!r) return false; const x=diaDe(r.data); return !mesmoObj(r.feitas,x.feitas||{}) || !mesmoObj(r.escolhas,x.escolhas||{}); }
+const mesmaLista = (a,b) => a.slice().sort().join('|')===b.slice().sort().join('|');
+function rascSujo(){
+  const r=UI.rasc; if(!r) return false; const x=diaDe(r.data);
+  return !mesmoObj(r.feitas,x.feitas||{}) || !mesmoObj(r.escolhas,x.escolhas||{}) || r.aguaMl!==mlDia(x)
+    || r.treinoMin!==(x.treinoMin||0) || !mesmaLista(r.extras,extrasDe(r.data)) || (r.doce||null)!==(x.doce||null);
+}
+/* Altera o dia exibido: hoje salva na hora; dia anterior altera o rascunho */
+function editarDia(fn){
+  const r=rascunho();
+  if(r){ fn(r); renderHoje(); return; }
+  alterarDia(hoje(), fn);
+}
 function mudarDia(d){
   if(d>hoje()) d=hoje();
   if(d===diaAtual()){ renderHoje(); return; }
   if(rascSujo() && !confirm('Descartar as alterações não registradas?')){ renderHoje(); return; }
-  UI.rasc=null; UI.dia = d===hoje() ? null : d; renderHoje();
+  UI.rasc=null; UI.aguaEdit=false; UI.dia = d===hoje() ? null : d; renderHoje();
 }
 
 /* ---------- Render ---------- */
@@ -101,7 +140,7 @@ const TITULOS = {hoje:'Hoje', plano:'Plano alimentar', semana:'Resumo semanal', 
 function render(){
   $('titulo').textContent = TITULOS[UI.tab];
   const nome = (S.perfil&&S.perfil.nome) || P.titular || 'Diário SMV';
-  $('eyebrow').textContent = UI.tab==='hoje' ? dataLonga(hoje()) : nome;
+  $('eyebrow').textContent = nome;
   Object.keys(TITULOS).forEach(t=>{ $('v-'+t).hidden = UI.tab!==t; });
   document.querySelectorAll('.tab').forEach(b=>{ if(b.dataset.tab===UI.tab) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
   renderAvisoBackup();
@@ -116,47 +155,83 @@ function renderAvisoBackup(){
   if(mostrar) $('aviso-backup-txt').textContent = dias==null ? 'Você ainda não fez backup dos registros.' : `Último backup há ${dias} dias.`;
 }
 
+/* Avisos do cardápio flexível para uma refeição num dia de fim de semana */
+function avisoFlex(r, data, src){
+  const fr=flexRef(r); if(!fr || !ehFlex(data)) return '';
+  const e=escolha(r,data,src), o=opcaoPorId(r,e), usada=flexUsadaEm(r,data);
+  if(r.id==='lanche' && DOCES && src.doce===DOCES.bolo.id) return '<p class="aviso-flex">Hoje o bolo (doce 10) substitui o lanche da tarde.</p>';
+  if(usada && o && o.umaVez) return `<p class="aviso-flex alerta">Opção flexível também escolhida em ${diaCurto(usada)}. A regra é 1 dia por fim de semana.</p>`;
+  if(usada) return `<p class="aviso-flex">Flex já usado em ${diaCurto(usada)}. ${esc(fr.outroDia||'')}</p>`;
+  return fr.dica ? `<p class="aviso-flex">${esc(fr.dica)}</p>` : '';
+}
+
 /* `dia` opcional: rascunho exibido no lugar do registro salvo */
 function blocoRefeicoes(data, dia){
   const src=dia||diaDe(data), f=src.feitas||{}, rs=dia?' data-rasc="1"':'';
   return '<ul class="refs">'+refeicoes().map(r=>{
-    const ops=opcoes(r), e=escolha(r,data,src), ef=opcaoEfetiva(r,data,src), feita=!!f[r.id];
-    const chips = ops.length>1 ? `<div class="op-chips" role="group" aria-label="Opções de ${esc(r.nome)}">`+ops.map(o=>{
-      const cls = o.id===e?'on':(!e&&o.id===ef?'sug':'');
-      return `<button class="op ${cls}" data-esc="${r.id}" data-op="${o.id}" data-data="${data}"${rs} aria-pressed="${o.id===e}">${esc(o.sigla||o.titulo)}</button>`;
+    const ops=opcoes(r,data), e=escolha(r,data,src), ef=opcaoEfetiva(r,data,src), feita=!!f[r.id];
+    const usada=flexUsadaEm(r,data);
+    const chips = ops.length>1 ? `<div class="op-chips" role="group" aria-label="Opções de ${esc(r.nome)}">`+ops.map((o,i)=>{
+      const cls = [o.id===e?'on':(!e&&o.id===ef?'sug':''), o.flex?'flex':'', o.flex&&o.umaVez&&usada&&o.id!==e?'bloq':''].filter(Boolean).join(' ');
+      const div = o.flex && !(ops[i-1]||{}).flex ? '<span class="op-div" aria-hidden="true"></span>' : '';
+      return `${div}<button class="op ${cls}" data-esc="${r.id}" data-op="${o.id}" data-data="${data}"${rs} aria-pressed="${o.id===e}"${o.subtitulo?` title="${esc(o.subtitulo)}"`:''}>${esc(o.sigla||o.titulo)}</button>`;
     }).join('')+'</div>' : '';
     const sub = r.opcional ? 'opcional' : (!e&&ops.length>1 ? 'sugestão do dia' : '');
     return `<li class="ref-item${feita?' feita':''}${r.opcional?' opc':''}">
       <div class="ref-linha">
         <button class="chk" data-check="${r.id}" data-data="${data}"${rs} aria-pressed="${feita}" aria-label="Marcar ${esc(r.nome)} como feita">${CHECK}</button>
         <div class="ref-info"><span class="ref-nome">${esc(r.nome)}</span><span class="ref-hora">${esc(r.hora)}${sub?' · '+sub:''}</span></div>
-        <button class="link" data-ver="${r.id}" data-op="${ef||''}">Detalhes</button>
+        <button class="link" data-ver="${r.id}" data-op="${ef||''}" data-data="${data}">Detalhes</button>
       </div>${chips}
-      <p class="ref-resumo">${esc(resumoOpcao(opcaoPorId(r,ef)))}</p>
+      <p class="ref-resumo">${esc(resumoOpcao(opcaoPorId(r,ef)))}</p>${avisoFlex(r,data,src)}
     </li>`;
   }).join('')+'</ul>';
 }
 
 function renderHoje(){
-  const h=hoje(), d=diaAtual(), rasc=rascunho(), rs=obrigatorias(), f=(rasc||diaDe(d)).feitas||{}, feitas=rs.filter(x=>f[x.id]).length, frac=feitas/rs.length;
-  $('dieta-label').textContent = d===h ? 'Dieta de hoje' : `Dieta de ${ddmm(d)}`;
+  const h=hoje(), d=diaAtual(), rasc=rascunho(), src=rasc||diaDe(d), rs=obrigatorias(), f=src.feitas||{}, feitas=rs.filter(x=>f[x.id]).length, frac=feitas/rs.length;
+  const passado = d!==h, flex=ehFlex(d);
+  $('titulo').textContent = passado ? 'Dia anterior' : 'Hoje';
+  $('eyebrow').textContent = dataLonga(d);
+  $('dieta-label').textContent = passado ? `Dieta de ${ddmm(d)}` : 'Dieta de hoje';
+  $('flex-badge').hidden = $('flex-legenda').hidden = !flex;
   $('dia-sel').value=d; $('dia-sel').max=h;
-  $('dia-prox').disabled = d>=h; $('dia-hoje').hidden = d===h;
+  $('dia-prox').disabled = d>=h; $('dia-hoje').hidden = !passado;
+  $('dia-bar').classList.toggle('passado', passado); $('dia-aviso').hidden = !passado;
   $('ring-prog').setAttribute('stroke-dashoffset', (213.6*(1-frac)).toFixed(1));
   $('ring-txt').textContent = `${feitas}/${rs.length}`;
   $('dieta-resumo').textContent = feitas===rs.length ? 'Dieta do dia concluída' : `${feitas} de ${rs.length} refeições`;
-  $('dieta-dica').textContent = rasc ? `${dataLonga(d)} · ajuste e toque em Registrar` : 'Escolha a opção e marque ao concluir';
+  $('dieta-dica').textContent = 'Escolha a opção e marque ao concluir';
   $('refs-hoje').innerHTML = blocoRefeicoes(d, rasc);
-  $('registrar').hidden = !rasc; $('btn-registrar').disabled = $('btn-descartar').disabled = !rascSujo();
+  const sujo=rascSujo();
+  $('registrar').hidden = !rasc; $('btn-registrar').disabled = $('btn-descartar').disabled = !sujo;
+  $('registrar-txt').textContent = sujo ? `Alterações em ${ddmm(d)} ainda não salvas` : `Nenhuma alteração em ${ddmm(d)}`;
 
-  const a=aguaDe(h), m=metaAgua(h), tm=diaDe(h).treinoMin||0;
+  const a=mlDia(src), m=metaAgua(d,src), tm=src.treinoMin||0;
   $('agua-val').innerHTML = `${ml(a)}<small>ml</small>`;
   $('agua-meta').textContent = a>=m ? `Meta de ${ml(m)} ml atingida` : `meta ${ml(m)} ml · faltam ${ml(m-a)}`;
   $('agua-barra').style.width = Math.min(100,a/m*100).toFixed(0)+'%';
   $('agua-ok').hidden = a<m;
+  $('agua-form').hidden = !UI.aguaEdit; $('agua-dica').hidden = UI.aguaEdit;
+  $('treino-label').textContent = `Treino ${passado?'no dia':'hoje'} (+${P.hidratacao.porHoraTreinoMl} ml por hora):`;
   $('treino-chips').innerHTML = TREINO_OPC.map(v=>`<button class="op ${v===tm?'on':''}" data-treino="${v}" aria-pressed="${v===tm}">${v?v+' min':'Sem treino'}</button>`).join('');
 
-  const marc=extrasDe(h);
+  /* Doce flexível (só nos dias de fim de semana) */
+  $('card-doce').hidden = !(flex && DOCES);
+  if(flex && DOCES){
+    const restr = boloOntem(d) ? DOCES.bolo.diaSeguinte : null, dc=src.doce||null;
+    $('doce-regra').textContent = DOCES.regra;
+    $('doce-livre').textContent = '+ ' + DOCES.livre;
+    $('doce-info').textContent = dc ? `opção ${doceIdx(dc)+1} escolhida` : '1 por dia';
+    const fora = restr && dc && !restr.includes(dc);
+    $('doce-aviso').hidden = !restr;
+    $('doce-aviso').className = 'aviso-flex' + (fora ? ' alerta' : '');
+    if(restr) $('doce-aviso').textContent = `Ontem teve bolo: hoje escolha só entre as opções 1 e ${doceIdx(restr[restr.length-1])+1}.`;
+    $('doce-chips').innerHTML = DOCES.itens.map((x,i)=>`<button class="chip tg doce${restr&&!restr.includes(x.id)&&x.id!==dc?' bloq':''}" data-doce="${x.id}" aria-pressed="${x.id===dc}"><b>${i+1}</b> ${esc(x.texto)}</button>`).join('');
+  }
+
+  const marc=src.extras||[];
+  $('extras-label').textContent = passado ? 'Extras do dia' : 'Extras de hoje';
   $('extras-n').textContent = marc.length ? `${marc.length} marcado${marc.length>1?'s':''}` : '';
   $('extras-hoje').innerHTML = P.extras.map(e=>`<button class="chip tg" data-extra="${e.id}" aria-pressed="${marc.includes(e.id)}">${esc(e.texto)}</button>`).join('');
 
@@ -193,18 +268,33 @@ function htmlGrupo(g){
   const extra = (g.frutas?'<button class="link" data-sec="frutas">Ver frutas e porções equivalentes</button>':'') + (g.receita?'<button class="link" data-sec="receita">Ver receita do capuccino</button>':'');
   return `<div class="grp"><span class="principal">${esc(g.alt[0])}</span>${g.alt.length>1?`<span class="subs-l">Ou substitua por</span><div class="chips">${g.alt.slice(1).map(a=>`<span class="chip">${esc(a)}</span>`).join('')}</div>`:''}${extra?`<div>${extra}</div>`:''}</div>`;
 }
+/* Regras do cardápio flexível no topo do card da refeição (modo Fim de semana) */
+function htmlRegraFlex(r){
+  const fr=flexRef(r); if(!fr) return '';
+  let h = `<span class="label c-flex">Fim de semana</span><p>${esc(fr.regra)}</p>`;
+  if(fr.outroDia) h += `<p class="nota">${esc(fr.outroDia)}</p>`;
+  if(fr.exemplos) h += `<span class="subs-l">Exemplos de preparo</span><div class="chips">${fr.exemplos.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`;
+  if(fr.sobremesa) h += `<p class="nota">${esc(fr.sobremesa)}</p>`;
+  return `<div class="flex-box">${h}</div>`;
+}
 function renderPlano(){
   const h=hoje();
-  $('atalhos').innerHTML = refeicoes().map(r=>`<button data-sec="r-${r.id}">${esc(r.nome)}</button>`).join('') + '<button data-sec="extras">Extras</button><button data-sec="frutas">Frutas</button><button data-sec="receita">Capuccino</button><button data-sec="agua">Água</button>';
-  let html = refeicoes().map(r=>{
-    const ops=opcoes(r), atual = UI.cardOp[r.id] || opcaoEfetiva(r,h) || ops[0].id, o = opcaoPorId(r,atual) || ops[0];
-    const chip = x => `<button class="op ${x.id===o.id?'on':''}" data-card="${r.id}" data-op="${x.id}" aria-pressed="${x.id===o.id}">${esc(x.titulo)}</button>`;
+  if(UI.planoFds==null) UI.planoFds = ehFlex(h);
+  const fds = !!(FDS && UI.planoFds);
+  document.querySelectorAll('[data-plano]').forEach(b=>b.setAttribute('aria-pressed', String((b.dataset.plano==='fds')===fds)));
+  $('atalhos').innerHTML = refeicoes().map(r=>`<button data-sec="r-${r.id}">${esc(r.nome)}</button>`).join('') + (fds&&DOCES?'<button data-sec="doces">Doces</button>':'') + '<button data-sec="extras">Extras</button><button data-sec="frutas">Frutas</button><button data-sec="receita">Capuccino</button><button data-sec="agua">Água</button>';
+  let html = fds ? `<div class="card card-flex"><div class="card-head"><h2>${esc(FDS.nome)}</h2><span class="badge-flex">${esc(FDS.dias.map(n=>SEM[n].split('-')[0].slice(0,3)).join(' · '))}</span></div><p class="nota">Nesses dias, as opções <b class="c-flex">Flex</b> aparecem na tela Hoje junto das habituais. Quantidades e regras abaixo, em cada refeição.</p></div>` : '';
+  html += refeicoes().map(r=>{
+    const ops = fds ? r.opcoes.concat(flexOps(r)) : r.opcoes;
+    const atual = UI.cardOp[r.id] || opcaoEfetiva(r,h), o = ops.find(x=>x.id===atual) || ops[0];
+    const chip = x => `<button class="op ${x.id===o.id?'on':''}${x.flex?' flex':''}" data-card="${r.id}" data-op="${x.id}" aria-pressed="${x.id===o.id}">${esc(x.titulo)}</button>`;
     let seg = ops.length>1 ? `<div class="op-chips" role="group" aria-label="Opções">${ops.map(chip).join('')}</div>` : '';
-    if(o.subtitulo) seg += `<p class="op-sub">${esc(o.subtitulo)}</p>`;
+    if(o.subtitulo) seg += `<p class="op-sub${o.flex?' c-flex':''}">${esc(o.subtitulo)}</p>`;
     let nota = o.nota ? `<p class="op-nota">${esc(o.nota)}</p>` : '';
     const beb = r.bebida ? `<p class="nota"><b>Bebida opcional:</b> ${esc(r.bebida)}</p>` : '';
-    return `<div class="card" id="sec-r-${r.id}"><div class="card-head"><h2>${esc(r.nome)}</h2><span class="ref-hora">${esc(r.hora)}</span></div>${seg}<div class="grps">${o.grupos.map(htmlGrupo).join('')}</div>${nota}${beb}</div>`;
+    return `<div class="card" id="sec-r-${r.id}"><div class="card-head"><h2>${esc(r.nome)}</h2><span class="ref-hora">${esc(r.hora)}</span></div>${fds?htmlRegraFlex(r):''}${seg}<div class="grps">${o.grupos.map(htmlGrupo).join('')}</div>${nota}${beb}</div>`;
   }).join('');
+  if(fds && DOCES) html += `<div class="card card-flex" id="sec-doces"><div class="card-head"><h2>Doce flexível</h2><span class="meta-info">1 por dia · ao longo do dia</span></div><p class="nota">${esc(DOCES.regra)}</p><ol class="lista-simples">${DOCES.itens.map(x=>`<li>${esc(x.texto)}</li>`).join('')}</ol><p class="nota"><b>Livre:</b> ${esc(DOCES.livre)}</p><p class="op-nota">${esc(DOCES.bolo.regra)}</p></div>`;
   html += `<div class="card" id="sec-extras"><div class="card-head"><h2>Lista extra</h2><span class="meta-info">Fome fora das refeições · uma opção</span></div><ol class="lista-simples">${P.extras.map(e=>`<li>${esc(e.texto)}</li>`).join('')}</ol><p class="nota"><b>Bebida opcional:</b> ${esc(P.chaExtras)}</p></div>`;
   html += `<div class="card" id="sec-frutas"><h2>Frutas · porções equivalentes</h2><div class="chips">${P.frutas.map(f=>`<span class="chip">${esc(f)}</span>`).join('')}</div><p class="nota">Adoçantes permitidos: ${esc(P.adocantes.join(', '))}.</p></div>`;
   const rc=P.capuccino;
@@ -233,12 +323,11 @@ function renderSemana(){
 
   let t='<thead><tr><th></th>'+dias.map((d,i)=>`<th class="${d===h?'hoje-col':''}">${SEM_C[i]}<span>${Number(d.slice(8))}</span></th>`).join('')+'</tr></thead><tbody>';
   rs.forEach(r=>{
-    const ops=opcoes(r);
     t+=`<tr><td class="rot">${esc(r.nome.replace(' da manhã','').replace(' da tarde','').replace('Pré-treino','Pré'))}<small>${esc(r.opcional?'opcional':r.hora.split(' ')[0])}</small></td>`;
     dias.forEach(d=>{
-      const f=!!feitasDe(d)[r.id], e=escolha(r,d), o=opcaoPorId(r,opcaoEfetiva(r,d));
+      const ops=opcoes(r,d), f=!!feitasDe(d)[r.id], e=escolha(r,d), o=opcaoPorId(r,opcaoEfetiva(r,d));
       const txt = ops.length>1 ? (o?o.sigla:'') : (f?'✓':'•');
-      let cls='cel';
+      let cls='cel'+(o&&o.flex?' flex':'');
       if(f) cls+=' feita'; else if(d<h) cls+=' perdida'; else if(e) cls+=' esc'; else cls+=' sug';
       const lab=`${r.nome}, ${dataLonga(d)}: ${o?o.titulo:''}${f?', feita':''}`;
       t+=`<td><button class="${cls}" data-cel="${r.id}" data-data="${d}" aria-label="${esc(lab)}" ${ops.length>1?'':'disabled'}>${esc(txt)}</button></td>`;
@@ -251,7 +340,7 @@ function renderSemana(){
   $('sem-refs').innerHTML = rs.map(r=>{
     const feitasR=passados.filter(d=>feitasDe(d)[r.id]);
     const cont={}; feitasR.forEach(d=>{ const o=opcaoPorId(r,opcaoEfetiva(r,d)); if(o) cont[o.sigla]=(cont[o.sigla]||0)+1; });
-    const usos = opcoes(r).length>1 && Object.keys(cont).length ? Object.entries(cont).map(([k,v])=>`${k} ×${v}`).join(' · ') : '';
+    const usos = (r.opcoes.length>1 || flexOps(r).length) && Object.keys(cont).length ? Object.entries(cont).map(([k,v])=>`${k} ×${v}`).join(' · ') : '';
     return `<div class="res-ref"><div class="res-top"><b>${esc(r.nome)}${r.opcional?' <span class="meta-info">(opcional)</span>':''}</b><span>${feitasR.length}/${n}</span></div><div class="barra"><span style="width:${n?feitasR.length/n*100:0}%"></span></div>${usos?`<span class="meta-info">Opções feitas: ${esc(usos)}</span>`:''}</div>`;
   }).join('');
 
@@ -263,6 +352,8 @@ function renderSemana(){
     if(melhor.v>0) dest.push(`${melhor.r.nome} foi a refeição mais cumprida (${Math.round(melhor.v*100)}%).`);
     if(pior.v<1 && pior.r!==melhor.r) dest.push(`${pior.r.nome} teve a menor adesão (${Math.round(pior.v*100)}%). Vale planejar esse horário.`);
     dest.push(extrasSem.length ? `${extrasSem.length} extra${extrasSem.length>1?'s':''} na semana.` : 'Nenhum extra registrado na semana.');
+    const docesSem=dias.filter(d=>diaDe(d).doce).map(d=>doceIdx(diaDe(d).doce)+1);
+    if(docesSem.length) dest.push(`Doce flexível: opç${docesSem.length>1?'ões':'ão'} ${docesSem.join(', ')} no fim de semana.`);
     dest.push(`Meta de água batida em ${diasAgua} de ${n} dia${n>1?'s':''}.`);
   }
   if(dPeso!=null) dest.push(`Peso ${dPeso<0?'caiu':dPeso>0?'subiu':'ficou estável'}${dPeso?` ${num(Math.abs(dPeso))} kg`:''} ${antes?'em relação à última medição da semana anterior':'entre as medições da semana'}.`);
@@ -304,7 +395,7 @@ function grafico(s){
     <text x="${L}" y="${H-6}">${ddmm(pts[0].d)}</text><text x="${W-R}" y="${H-6}" text-anchor="end">${ddmm(pts[pts.length-1].d)}</text></svg>`;
 }
 function renderEvo(){
-  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.serie===UI.serie)));
+  document.querySelectorAll('.seg button[data-serie]').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.serie===UI.serie)));
   const s=serieAtual();
   $('graf-label').textContent=s.label; $('graf-label').className='label '+s.cls;
   $('grafico').innerHTML=grafico(s);
@@ -340,7 +431,9 @@ function renderCal(){
   $('refs-sel').innerHTML = blocoRefeicoes(UI.sel);
   const md=meds().filter(x=>x.data===UI.sel).pop(), ag=aguaDe(UI.sel);
   $('med-sel').innerHTML = (md ? `<b class="c-peso">${num(md.peso)} kg</b>${md.gordura!=null?`<b class="c-bio">${num(md.gordura)}% gordura</b>`:''}${(cx=>`${cx.musculoPct!=null?`<b class="c-bio">${num(cx.musculoPct)}% massa muscular</b>`:''}${cx.osseaPct!=null?`<b class="c-bio">${num(cx.osseaPct)}% massa óssea</b>`:''}`)(composicao(md))}${imc(md.peso)!=null?`<b class="c-imc">IMC ${num(imc(md.peso))}</b>`:''}` : '<span class="meta-info">Sem medição neste dia.</span>')
-    + (ag ? `<b class="c-agua">${ml(ag)} ml de água</b>` : '');
+    + `<b class="c-agua">${ml(ag)} ml de água</b>`
+    + (diaDe(UI.sel).doce ? `<b class="c-flex">Doce ${doceIdx(diaDe(UI.sel).doce)+1}</b>` : '');
+  $('btn-editar-dia').hidden = UI.sel>h;
 }
 
 /* ---------- Perfil ---------- */
@@ -351,7 +444,7 @@ function renderPerfil(){
   }
   $('backup-info').textContent = `${S.medicoes.length} medições e ${Object.keys(S.dias).length} dias registrados. ` + (S.ultimoBackup ? `Último backup em ${ddmm(S.ultimoBackup)}.` : 'Nenhum backup feito ainda.');
   $('btn-apagar').textContent = UI.confApagar ? 'Toque de novo para confirmar: apagar tudo' : 'Apagar todos os registros deste aparelho';
-  $('plano-info').innerHTML = `<p style="margin:0">Plano <b>${esc(P.versao)}</b> de ${esc(P.titular)} · objetivo: ${esc(P.objetivo.toLowerCase())}. ${obrigatorias().length} refeições diárias, pré-treino opcional e ${P.extras.length} extras.</p><p class="meta-info">Nutricionista: ${esc(P.nutricionista)}. Quando vier um plano novo, atualize o arquivo <code>plano.js</code> no GitHub.</p>`;
+  $('plano-info').innerHTML = `<p style="margin:0">Plano <b>${esc(P.versao)}</b> de ${esc(P.titular)} · objetivo: ${esc(P.objetivo.toLowerCase())}. ${obrigatorias().length} refeições diárias, pré-treino opcional e ${P.extras.length} extras.${FDS?` Cardápio flexível em: ${FDS.dias.map(n=>SEM[n].split('-')[0]).join(', ')}.`:''}</p><p class="meta-info">Nutricionista: ${esc(P.nutricionista)}. Quando vier um plano novo, atualize o arquivo <code>plano.js</code> no GitHub.</p>`;
 }
 
 /* ---------- Backup ---------- */
@@ -402,12 +495,15 @@ document.addEventListener('click', e=>{
   if(ds.check){ alterarDia(ds.data, c=>marcar(c, ds.check, ds.data)); return; }
   if(ds.esc){ alterarDia(ds.data, escolher); return; }
   if(ds.cel){
-    const r=refeicoes().find(x=>x.id===ds.cel), ops=opcoes(r), i=ops.findIndex(o=>o.id===opcaoEfetiva(r,ds.data));
+    const r=refeicoes().find(x=>x.id===ds.cel), ops=opcoes(r,ds.data), i=ops.findIndex(o=>o.id===opcaoEfetiva(r,ds.data));
     alterarDia(ds.data, c=>{ c.escolhas[r.id]=ops[(i+1)%ops.length].id; }); return;
   }
-  if(ds.extra){ alterarDia(hoje(), c=>{ const i=c.extras.indexOf(ds.extra); if(i>=0) c.extras.splice(i,1); else c.extras.push(ds.extra); }); return; }
-  if(ds.treino!=null){ alterarDia(hoje(), c=>{ c.treinoMin=Number(ds.treino); }); return; }
-  if(ds.ver){ if(ds.op) UI.cardOp[ds.ver]=ds.op; irPara('plano'); rolar('sec-r-'+ds.ver); return; }
+  /* Água, treino, extras e doce seguem o dia exibido na tela Hoje */
+  if(ds.extra){ editarDia(c=>{ const i=c.extras.indexOf(ds.extra); if(i>=0) c.extras.splice(i,1); else c.extras.push(ds.extra); }); return; }
+  if(ds.treino!=null){ editarDia(c=>{ c.treinoMin=Number(ds.treino); }); return; }
+  if(ds.doce){ editarDia(c=>{ c.doce = c.doce===ds.doce ? null : ds.doce; }); return; }
+  if(ds.plano){ UI.planoFds = ds.plano==='fds'; renderPlano(); return; }
+  if(ds.ver){ if(ds.op) UI.cardOp[ds.ver]=ds.op; if(ds.data) UI.planoFds=ehFlex(ds.data); irPara('plano'); rolar('sec-r-'+ds.ver); return; }
   if(ds.card){ UI.cardOp[ds.card]=ds.op; renderPlano(); return; }
   if(ds.sec){ if(UI.tab!=='plano') irPara('plano'); rolar('sec-'+ds.sec); return; }
   if(ds.dia){ UI.sel=ds.dia; renderCal(); return; }
@@ -419,18 +515,28 @@ document.addEventListener('click', e=>{
   switch(ds.acao){
     case 'agua-mais': case 'agua-menos': {
       const passo = P.hidratacao.incrementoMl * (ds.acao==='agua-mais'?1:-1);
-      alterarDia(hoje(), c=>{ c.aguaMl=Math.max(0, mlDia(c)+passo); delete c.copos; }); break;
+      editarDia(c=>{ c.aguaMl=Math.max(0, mlDia(c)+passo); delete c.copos; }); break;
     }
+    case 'agua-editar': {
+      UI.aguaEdit=true; renderHoje();
+      const src=rascunho()||diaDe(diaAtual()), inp=$('agua-input'); inp.value=mlDia(src); mostrarErro('agua-erro','');
+      inp.focus(); inp.select(); break;
+    }
+    case 'agua-cancelar': UI.aguaEdit=false; renderHoje(); break;
+    case 'editar-dia': irPara('hoje'); mudarDia(UI.sel); break;
     case 'dia-ant': mudarDia(somaDias(diaAtual(),-1)); break;
     case 'dia-prox': mudarDia(somaDias(diaAtual(),1)); break;
     case 'dia-hoje': mudarDia(hoje()); break;
     case 'registrar': {
       const r=UI.rasc; if(!r) break;
-      alterarDia(r.data, c=>{ c.feitas={...r.feitas}; c.escolhas={...r.escolhas}; });
-      toast(`Refeições de ${ddmm(r.data)} registradas`); break;
+      alterarDia(r.data, c=>{
+        c.feitas={...r.feitas}; c.escolhas={...r.escolhas}; c.aguaMl=r.aguaMl; delete c.copos;
+        c.treinoMin=r.treinoMin; c.extras=r.extras.slice(); if(r.doce) c.doce=r.doce; else delete c.doce;
+      });
+      toast(`Dia ${ddmm(r.data)} registrado`); break;
     }
-    case 'descartar': UI.rasc=null; renderHoje(); break;
-    case 'abrir-form': $('form-med').hidden=false; $('btn-medir').hidden=true; $('m-data').value=hoje(); $('m-peso').focus(); break;
+    case 'descartar': UI.rasc=null; UI.aguaEdit=false; renderHoje(); break;
+    case 'abrir-form': $('form-med').hidden=false; $('btn-medir').hidden=true; $('m-data').value=diaAtual(); $('m-peso').focus(); break;
     case 'fechar-form': fecharForm(); break;
     case 'mes-ant': UI.mes.m--; if(UI.mes.m<0){UI.mes.m=11;UI.mes.a--;} renderCal(); break;
     case 'mes-prox': UI.mes.m++; if(UI.mes.m>11){UI.mes.m=0;UI.mes.a++;} renderCal(); break;
@@ -467,6 +573,14 @@ $('form-med').addEventListener('submit', e=>{
   if(mu+os > 100) return mostrarErro('m-erro','Massa muscular + massa óssea não podem passar de 100%.');
   if(m.gordura!=null && m.gordura+mu+os > 105) return mostrarErro('m-erro',`Gordura + músculo + osso somam ${num(m.gordura+mu+os)}%. Confira os valores.`);
   S.medicoes.push(m); salvar(); fecharForm(); render(); toast('Medição registrada');
+});
+$('agua-form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const v=parse($('agua-input').value);
+  if(v==null||isNaN(v)||v<0||v>10000) return mostrarErro('agua-erro','Informe um valor entre 0 e 10.000 ml.');
+  UI.aguaEdit=false;
+  editarDia(c=>{ c.aguaMl=Math.round(v); delete c.copos; });
+  toast(diaAtual()===hoje() ? 'Água atualizada' : `Água de ${ddmm(diaAtual())} ajustada · toque em Registrar`);
 });
 $('form-perfil').addEventListener('submit', e=>{
   e.preventDefault();

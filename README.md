@@ -2,6 +2,11 @@
 
 App web para acompanhar o plano alimentar **SMV · 6ª edição**: refeições do dia (com opções e sugestão automática), água com meta ajustada ao treino, extras, peso/bioimpedância/IMC, resumo semanal e calendário.
 
+### Novidades
+
+- **Cardápio flexível de fim de semana** (sexta, sábado e domingo — configurável em `plano.js → fimDeSemana.dias`): a tela Hoje mostra as opções *Flex* (F1, F2…) em dourado junto das habituais, o card **Doce flexível** (1 por dia) e avisos das regras (café flexível em 1 dia só, troca do lanche em 1 dia só, regra do bolo). A aba Plano tem a alternância *Dia a dia / Fim de semana*.
+- **Editar dias anteriores por completo**: o seletor de data no topo da tela Hoje vale para refeições, água, treino, extras e doce. Em dias anteriores tudo vai para um rascunho e só é salvo em **Registrar**. Toque no número da água para digitar o total do dia. No Calendário, *Editar água, treino e extras deste dia* abre o dia direto.
+
 HTML + CSS + JavaScript puros. Sem build, sem servidor, sem dependências.
 
 ## Estrutura

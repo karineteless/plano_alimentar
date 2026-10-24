@@ -245,3 +245,42 @@ form{display:flex;flex-direction:column;gap:14px}
 .comp li b{text-align:right;font-weight:600}
 .comp li b small{display:inline}
 .comp li .dl{grid-column:2;text-align:right}
+
+/* Cardápio flexível de fim de semana (cor própria: dourado) */
+:root{ --flex:#93650A; --flex-soft:#F7E6B8; --flex-line:#E2C77E }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --flex:#E6BE66; --flex-soft:#33290F; --flex-line:#5C4A1E }}
+:root[data-theme="dark"]{ --flex:#E6BE66; --flex-soft:#33290F; --flex-line:#5C4A1E }
+.c-flex{color:var(--flex)}
+.badge-flex{font-size:12px;font-weight:600;color:var(--flex);background:var(--flex-soft);border-radius:999px;padding:3px 10px}
+.op.flex{border-color:var(--flex-line);color:var(--flex)}
+.op.flex.sug{border-style:dashed}
+.op.flex.on{background:var(--flex);border-color:var(--flex);color:var(--surface)}
+.op.bloq{opacity:.45}
+.op-div{width:1px;align-self:stretch;background:var(--line);margin:2px 2px}
+.aviso-flex{margin:0;font-size:13px;color:var(--flex);background:var(--flex-soft);border-radius:8px;padding:6px 10px}
+.aviso-flex.alerta{color:var(--bad);background:var(--chip)}
+.ref-item.feita .aviso-flex{background:var(--surface)}
+.card-flex{border-color:var(--flex-line)}
+.flex-box{background:var(--flex-soft);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.flex-box p{margin:0;font-size:14px}
+.flex-box .chip{background:var(--surface)}
+.chip.tg.doce b{color:var(--flex);margin-right:4px;font-variant-numeric:tabular-nums}
+.chip.tg.doce[aria-pressed="true"]{background:var(--flex-soft);border-color:var(--flex);color:var(--ink)}
+.chip.tg.bloq{opacity:.45}
+.cel.flex:not(.feita){color:var(--flex);border-color:var(--flex-line)}
+.cel.flex.feita{background:var(--flex);border-color:var(--flex)}
+.seg.s2{grid-template-columns:repeat(2,1fr)}
+
+/* Dia exibido (governa a tela Hoje inteira) */
+.dia-bar{display:flex;flex-direction:column;gap:8px}
+.dia-bar .dia-nav{margin:0}
+.dia-bar.passado .dia-nav input{border-color:var(--peso);box-shadow:0 0 0 1px var(--peso)}
+.dia-aviso{margin:0;font-size:13px;background:var(--peso-soft);color:var(--ink);border-radius:10px;padding:8px 12px}
+.registrar-bar{position:sticky;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:4;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.registrar-bar .btn{min-height:44px;padding:10px 14px}
+.registrar-bar .btn-pri{background:var(--dieta);color:var(--surface)}
+.registrar-bar .btn:disabled{opacity:.45}
+
+/* Água: número tocável + entrada direta */
+button.agua-val{background:none;border:0;padding:0;border-bottom:2px dashed var(--line);border-radius:0;line-height:1.2}
+.agua-form{gap:10px}
